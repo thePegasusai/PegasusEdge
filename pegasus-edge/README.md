@@ -36,7 +36,10 @@ The heart of Pegasus Edge, this multi-step AI co-producer helps creators generat
 1.  **The Vision:** Define channel niche, video topic, and content style to get AI-generated titles, unique angles, and target audience personas.
 2.  **Visual Signature:** Based on the vision, AI suggests color palettes, font pairings, and thumbnail concepts.
 3.  **Content Blueprint:** AI drafts key talking points, intro hooks, call-to-action phrases, and interactive segment ideas.
-4.  **Audio Alchemy:** Generates AI concepts for background music, jingles, sound effects, and voiceover tones, with a nod to future integration of models like AudioCraft.
+4.  **Audio Alchemy:** This enhanced step provides a more interactive experience for audio creation. Users can now:
+    *   Generate detailed *text-based concepts* for background music, jingles, sound effects, and voiceover tones independently, using targeted AI prompts.
+    *   Conceptually "generate" actual audio *snippets* for each category. These snippets are currently placeholders (powered by a mock "FutureSound API") but demonstrate how users could preview and select sounds.
+    *   View a "Future Vision" section within the tool that describes more advanced audio crafting experiences, such as real audio playback, interactive tweaking of sounds, AI-driven contextual suggestions, and potential for AI-assisted soundscaping, hinting at future integrations with cutting-edge audio models (like the initially envisioned AudioCraft or similar).
 5.  **Your Edge Pack:** A consolidated summary of all generated assets.
 
 ## Other AI Tools

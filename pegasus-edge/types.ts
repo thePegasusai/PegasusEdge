@@ -104,11 +104,54 @@ export interface CreatorBlueprintOutput {
 }
 
 export interface CreatorAudioOutput {
+  // Existing text-based concepts (from Gemini text generation)
   musicStyleSuggestions: string[];
-  jingleIdeas: string[];
+  jingleIdeas: string[]; // These could be text concepts for jingles
   sfxConcepts: string[];
-  voiceOverTone?: string;
+  voiceOverTone: string[]; // Changed to string[] in previous step
+
+  // New fields for structured, "generated" audio assets (from "FutureSound API")
+  generatedMusic: MusicAsset[];
+  generatedJingles: MusicAsset[]; // Jingles are a type of MusicAsset
+  generatedSfx: SfxAsset[];
+  generatedVoiceovers: VoiceoverAsset[];
 }
+
+// Base for all audio assets
+export interface AudioAssetCore {
+  id: string; // Unique identifier for the asset
+  description: string; // Text prompt or AI-generated description of the audio
+  type: 'music' | 'sfx' | 'jingle' | 'voiceover';
+  audioUrl?: string; // URL to the playable audio file (will be mock/placeholder)
+  isLoading?: boolean; // Optional: for UI to show loading state for this specific asset
+  error?: string; // Optional: for UI to show error for this specific asset
+}
+
+export interface MusicAsset extends AudioAssetCore {
+  type: 'music' | 'jingle'; // Jingles are a specialized form of music
+  duration: number; // in seconds
+  genre?: string;
+  mood?: string;
+  tempo?: string;
+  instrumentation?: string[];
+}
+
+export interface SfxAsset extends AudioAssetCore {
+  type: 'sfx';
+  sfxCategory?: string; // e.g., 'ambience', 'impact', 'ui', 'character'
+  character?: string[]; // e.g., 'sharp', 'booming', 'subtle', 'electronic'
+}
+
+export interface VoiceoverAsset extends AudioAssetCore {
+  type: 'voiceover';
+  text: string; // The text that was synthesized
+  voiceUsed?: string; // Identifier for the voice model/style used
+  emotion?: string;
+  language?: string;
+}
+
+// Union type for convenience
+export type AudioAsset = MusicAsset | SfxAsset | VoiceoverAsset;
 
 export interface CreatorsEdgeState {
   channelNiche: string;
