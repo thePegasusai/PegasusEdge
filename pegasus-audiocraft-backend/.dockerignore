@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Other
+*.DS_Store
+generated_audio/*
+!generated_audio/.gitkeep # If you want to keep the directory but ignore its contents initially

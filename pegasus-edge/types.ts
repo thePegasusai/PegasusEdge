@@ -106,8 +106,20 @@ export interface CreatorBlueprintOutput {
 export interface CreatorAudioOutput {
   musicStyleSuggestions: string[];
   jingleIdeas: string[];
-  sfxConcepts: string[];
+  sfxConcepts: string[]; // Text-based concepts (already exists)
   voiceOverTone?: string;
+  generatedMusic?: MusicAsset[]; // For actual generated audio snippets
+  generatedSfx?: SfxAsset[]; // For actual generated SFX assets
+}
+
+export interface SfxAsset {
+  id: string;
+  description: string; // Prompt used for generation
+  type: 'sfx';
+  audioUrl?: string;
+  duration?: number; // Optional, as SFX duration can be variable
+  isLoading?: boolean;
+  error?: string | null;
 }
 
 export interface CreatorsEdgeState {
@@ -118,4 +130,15 @@ export interface CreatorsEdgeState {
   signatureOutput: CreatorSignatureOutput | null;
   blueprintOutput: CreatorBlueprintOutput | null;
   audioOutput: CreatorAudioOutput | null;
+}
+
+export interface MusicAsset {
+  id: string;
+  description: string; // Corresponds to the prompt
+  type: 'music' | 'sfx' | 'voiceover'; // Type of audio asset
+  audioUrl: string; // URL to the audio file
+  duration: number; // Duration in seconds
+  isLoading?: boolean; // Optional: for UI state management
+  error?: string | null; // Optional: for error handling
+  // Potentially add waveform data, tags, etc. in the future
 }

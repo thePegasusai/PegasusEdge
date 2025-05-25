@@ -24,7 +24,7 @@ The application also showcases a conceptual integration of a subscription model 
 
 *   **Modern & Sophisticated UI/UX:** A "modern playboy esque" dark theme with gold, purple, and pink accents, designed for an inspiring and premium user experience.
 *   **Targeted for Creators:** Tools and workflows specifically tailored to the needs of streamers and YouTubers.
-*   **AI-Powered Generation:** Leverages the Google Gemini API for text and image generation, chat, and search-grounded insights.
+*   **AI-Powered Generation:** Leverages the Google Gemini API for text and image generation, chat, and search-grounded insights. Also integrates with a dedicated **AudioCraft backend** (MusicGen for music, AudioGen for SFX) for real audio generation.
 *   **Modular Tool Arsenal:** A collection of distinct AI tools accessible through a unified interface.
 *   **Conceptual Subscription & Payments:** Demonstrates a frontend framework for handling subscriptions (free first use, pay-per-use, monthly, lifetime) with mock Stripe integration.
 *   **Responsive Design:** Built to be usable across various screen sizes.
@@ -36,8 +36,8 @@ The heart of Pegasus Edge, this multi-step AI co-producer helps creators generat
 1.  **The Vision:** Define channel niche, video topic, and content style to get AI-generated titles, unique angles, and target audience personas.
 2.  **Visual Signature:** Based on the vision, AI suggests color palettes, font pairings, and thumbnail concepts.
 3.  **Content Blueprint:** AI drafts key talking points, intro hooks, call-to-action phrases, and interactive segment ideas.
-4.  **Audio Alchemy:** Generates AI concepts for background music, jingles, sound effects, and voiceover tones, with a nod to future integration of models like AudioCraft.
-5.  **Your Edge Pack:** A consolidated summary of all generated assets.
+4.  **Audio Alchemy:** Generates actual audio snippets for background music and sound effects. Users can input prompts for SFX or leverage AI-suggested music styles, and the system will produce playable audio using a dedicated AudioCraft backend (MusicGen for music, AudioGen for SFX). It also still provides AI-generated textual concepts for jingles and voiceover tones.
+5.  **Your Edge Pack:** A consolidated summary of all generated assets, including playable audio.
 
 ## Other AI Tools
 
@@ -109,6 +109,7 @@ User subscription status is managed using React Context and persisted in `localS
     *   This key **must** be available as an environment variable named `API_KEY` in the execution context where the JavaScript runs (i.e., `process.env.API_KEY`).
     *   The `App.tsx` component checks for this key upon initialization. If it's not found, the app will display an error message and will not be usable.
     *   **For local development without a server-side build process:** You might need to manually make this key available to the browser's `process.env` object before the application loads, or use a local development server that supports injecting environment variables. One common way for simple local serving is to modify `index.html` to temporarily set this, but **this is NOT secure for production or shared environments.**
+    *   **AudioCraft Backend for Audio Generation:** The music and sound effect generation features in the "Audio Alchemy" step of the Creator's Edge Studio rely on the `pegasus-audiocraft-backend` project. This backend server **must be running** for these specific features to work. Please refer to the `pegasus-audiocraft-backend/README.md` for instructions on setting up and running the backend.
         ```html
         <!-- In index.html, before your script tags - FOR LOCAL DEV ONLY -->
         <script>

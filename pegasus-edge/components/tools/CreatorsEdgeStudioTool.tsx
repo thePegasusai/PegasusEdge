@@ -198,30 +198,122 @@ const CreatorsEdgeStudioTool: React.FC = () => {
     if (!studioState.blueprintOutput) { setError('Blueprint needed for audio.'); return; }
     setIsLoading(true); setError(null);
     try {
-      const prompt = `Project (Niche: ${studioState.channelNiche}, Topic: ${studioState.videoTopic}, Style: ${studioState.contentStyle}, Points: ${studioState.blueprintOutput.talkingPoints.join('; ')}).
-      Generate JSON for audio concepts: music style suggestions (2-3), jingle ideas (1-2 concepts), SFX concepts (2-3), voiceover tone (1 suggestion).
+      // Step 1: Generate textual audio concepts (jingles, SFX, voice tone)
+      const textualConceptsPrompt = `Project (Niche: ${studioState.channelNiche}, Topic: ${studioState.videoTopic}, Style: ${studioState.contentStyle}, Points: ${studioState.blueprintOutput.talkingPoints.join('; ')}).
+      Generate JSON for: jingle ideas (1-2 short concepts), SFX concepts (2-3 relevant sounds), voiceover tone (1 suggestion), and also music style suggestions (2 distinct styles, e.g., "Uplifting Electronic", "Chill Lo-fi Hip Hop").
       { "musicStyleSuggestions": [], "jingleIdeas": [], "sfxConcepts": [], "voiceOverTone": "" }`;
-      const resultText = await generateText(prompt, "AI audio director for digital content.");
-      const parsedResult = parseJsonResponse<CreatorAudioOutput>(resultText, {
-        musicStyleSuggestions: ["AI Error."], jingleIdeas: ["AI Error."], sfxConcepts: ["AI Error."], voiceOverTone: "AI Error."
+      
+      const textualResultText = await generateText(textualConceptsPrompt, "AI audio director for digital content.");
+      const parsedTextualResult = parseJsonResponse<CreatorAudioOutput>(textualResultText, {
+        musicStyleSuggestions: ["AI Error: No styles suggested."], jingleIdeas: ["AI Error."], sfxConcepts: ["AI Error."], voiceOverTone: "AI Error."
       });
-      setStudioState(prev => ({ ...prev, audioOutput: parsedResult }));
-      // This is the final generation step before PACK, so we trigger access check here.
-      // If it's a free use, it gets consumed. If it's pay-per-use, modal shown.
-       if (isSubscribed()) {
-            proceedToNextStep(); // Directly go to PACK
-        } else if (canUseCreatorStudioFree()) {
-            consumeCreatorStudioFreeUse();
-            proceedToNextStep(); // Go to PACK
-        } else { // Needs to pay
-            setShowPaymentModal(true);
-            // Store the action to proceed to PACK after successful payment
-            setPendingAction(() => async () => {
-                proceedToNextStep();
-            });
-        }
 
-    } catch (err) { setError((err as Error).message); } finally { setIsLoading(false); }
+      // Initialize generatedMusic array
+      const generatedMusicAssets: MusicAsset[] = [];
+      if (parsedTextualResult.musicStyleSuggestions && parsedTextualResult.musicStyleSuggestions.length > 0) {
+        for (const styleSuggestion of parsedTextualResult.musicStyleSuggestions) {
+          if (styleSuggestion.toLowerCase().includes("ai error")) {
+            generatedMusicAssets.push({
+              id: `error-${Date.now()}-${generatedMusicAssets.length}`,
+              description: styleSuggestion,
+              type: 'music',
+              audioUrl: '',
+              duration: 0,
+              error: 'Failed to get a valid style suggestion from AI.',
+              isLoading: false,
+            });
+            continue;
+          }
+          // For each style, call the actual audio generation service
+          // For simplicity, using a default duration of 8 seconds per snippet.
+          // Update UI to show loading for this specific asset (more advanced state needed for per-asset loading)
+          setStudioState(prev => ({ 
+            ...prev, 
+            audioOutput: { 
+              ...(prev.audioOutput || parsedTextualResult), 
+              musicStyleSuggestions: parsedTextualResult.musicStyleSuggestions, // keep suggestions
+              jingleIdeas: parsedTextualResult.jingleIdeas,
+              sfxConcepts: parsedTextualResult.sfxConcepts,
+              voiceOverTone: parsedTextualResult.voiceOverTone,
+              generatedMusic: [
+                ...(prev.audioOutput?.generatedMusic || []), 
+                { 
+                  id: `loading-${Date.now()}-${generatedMusicAssets.length}`, 
+                  description: `Generating: ${styleSuggestion}`, 
+                  type: 'music', 
+                  audioUrl: '', 
+                  duration: 8, 
+                  isLoading: true 
+                }
+              ]
+            } 
+          }));
+
+          try {
+            const musicAsset = await generateMusicSnippet(styleSuggestion, 8); // 8 seconds duration
+            generatedMusicAssets.push(musicAsset);
+          } catch (genError) {
+            console.error(`Error generating music for prompt "${styleSuggestion}":`, genError);
+            generatedMusicAssets.push({
+              id: `error-${Date.now()}-${generatedMusicAssets.length}`,
+              description: styleSuggestion,
+              type: 'music',
+              audioUrl: '',
+              duration: 8,
+              error: (genError instanceof Error) ? genError.message : 'Failed to generate audio snippet.',
+              isLoading: false,
+            });
+          }
+          // Update state after each generation (or batch update for better performance)
+          setStudioState(prev => ({ 
+            ...prev, 
+            audioOutput: { 
+              ...(prev.audioOutput || parsedTextualResult),
+              musicStyleSuggestions: parsedTextualResult.musicStyleSuggestions,
+              jingleIdeas: parsedTextualResult.jingleIdeas,
+              sfxConcepts: parsedTextualResult.sfxConcepts,
+              voiceOverTone: parsedTextualResult.voiceOverTone,
+              // Replace loading asset with actual or error asset
+              generatedMusic: (prev.audioOutput?.generatedMusic || []).filter(a => !a.isLoading).concat(generatedMusicAssets.filter(a => !generatedMusicAssets.find(prev_a => prev_a.id === a.id && prev_a.isLoading)))
+            } 
+          }));
+        }
+      }
+      
+      setStudioState(prev => ({
+        ...prev,
+        audioOutput: {
+          ...parsedTextualResult, // Contains suggestions for jingles, sfx, voice tone
+          generatedMusic: generatedMusicAssets, // Contains actual generated music
+        },
+      }));
+
+      // Access check and proceed to next step
+      if (isSubscribed()) {
+        proceedToNextStep();
+      } else if (canUseCreatorStudioFree()) {
+        consumeCreatorStudioFreeUse();
+        proceedToNextStep();
+      } else {
+        setShowPaymentModal(true);
+        setPendingAction(() => async () => {
+          proceedToNextStep();
+        });
+      }
+
+    } catch (err) { 
+      setError((err as Error).message); 
+      // Ensure audioOutput.generatedMusic is cleared or handles errors if top-level try fails
+      setStudioState(prev => ({
+        ...prev,
+        audioOutput: {
+          ...(prev.audioOutput || { musicStyleSuggestions: [], jingleIdeas: [], sfxConcepts: [], voiceOverTone: '' }),
+          generatedMusic: (prev.audioOutput?.generatedMusic || []).map(asset => asset.isLoading ? ({...asset, isLoading: false, error: "Overall generation failed." }) : asset)
+        }
+      }));
+    } finally { 
+      setIsLoading(false); 
+    }
   }, [studioState.channelNiche, studioState.videoTopic, studioState.contentStyle, studioState.blueprintOutput, isSubscribed, canUseCreatorStudioFree, consumeCreatorStudioFreeUse]);
 
 
@@ -291,7 +383,62 @@ const CreatorsEdgeStudioTool: React.FC = () => {
       case CreatorStepIdEnum.AUDIO_ALCHEMY:
         // The button for Audio Alchemy will effectively be the "Generate Pack" button
         // in terms of access control, as it's the final generation step.
-        return ( <div className="space-y-6"> {!studioState.blueprintOutput && <p className="text-amber-400">Complete 'Blueprint' first.</p>} {studioState.blueprintOutput && (<div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700"><h4 className="font-semibold text-purple-300 mb-1">Recap - Blueprint:</h4><p className="text-xs text-slate-400">Talking Point: {studioState.blueprintOutput.talkingPoints[0]} | Intro Hook: {studioState.blueprintOutput.introHooks[0]}</p></div>)} <p className="text-sm text-slate-400">Final Step: Generate audio concepts and compile your Edge Pack.{packAccessMessage}</p> <button onClick={handleAudioGeneration} disabled={isLoading || !studioState.blueprintOutput} className="btn-premium w-full flex items-center justify-center bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"> {isLoading && <LoadingSpinner size="sm" />} <span className={isLoading ? 'ml-2' : ''}>Generate Audio & Finalize Pack</span> <PackageIcon className="w-5 h-5 ml-2"/></button> </div> );
+        return (
+          <div className="space-y-6">
+            {!studioState.blueprintOutput && <p className="text-amber-400">Complete 'Blueprint' first.</p>}
+            {studioState.blueprintOutput && (
+              <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                <h4 className="font-semibold text-purple-300 mb-1">Recap - Blueprint:</h4>
+                <p className="text-xs text-slate-400">Talking Point: {studioState.blueprintOutput.talkingPoints[0]} | Intro Hook: {studioState.blueprintOutput.introHooks[0]}</p>
+              </div>
+            )}
+            <p className="text-sm text-slate-400">
+              Final Step: Generate actual music snippets based on AI suggestions, along with other audio concepts, and compile your Edge Pack.
+              {packAccessMessage}
+            </p>
+            <button 
+              onClick={handleAudioGeneration} 
+              disabled={isLoading || !studioState.blueprintOutput} 
+              className="btn-premium w-full flex items-center justify-center bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
+            >
+              {isLoading && <LoadingSpinner size="sm" />}
+              <span className={isLoading ? 'ml-2' : ''}>Generate Audio Assets & Finalize Pack</span>
+              <PackageIcon className="w-5 h-5 ml-2"/>
+            </button>
+            {/* Display generated audio concepts and loading/error states for music snippets */}
+            {studioState.audioOutput && (
+              <div className="mt-4 space-y-3">
+                {studioState.audioOutput.musicStyleSuggestions && studioState.audioOutput.musicStyleSuggestions.length > 0 && (
+                  <div>
+                    <h5 className="text-md font-semibold text-purple-300 mb-1">Generated Music Snippets:</h5>
+                    {studioState.audioOutput.generatedMusic && studioState.audioOutput.generatedMusic.map((asset) => (
+                      <div key={asset.id} className="p-3 bg-slate-800/60 rounded-md my-2 border border-slate-700">
+                        <p className="text-sm font-medium text-sky-300">{asset.description || 'Generated Music'}</p>
+                        {asset.isLoading && <p className="text-xs text-amber-400 mt-1 flex items-center"><LoadingSpinner size="xs" /> <span className="ml-2">Generating audio... please wait.</span></p>}
+                        {asset.error && <p className="text-xs text-red-400 mt-1">Error: {asset.error}</p>}
+                        {asset.audioUrl && !asset.isLoading && !asset.error && (
+                          <>
+                            <p className="text-xs text-slate-400">Duration: {asset.duration}s</p>
+                            <audio controls src={asset.audioUrl} className="w-full mt-2 h-10">
+                              Your browser does not support the audio element.
+                            </audio>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    {(!studioState.audioOutput.generatedMusic || studioState.audioOutput.generatedMusic.length === 0) && !isLoading && (
+                        <p className="text-xs text-slate-400">No music snippets generated yet, or generation is in progress for suggestions: {studioState.audioOutput.musicStyleSuggestions.join(', ')}.</p>
+                    )}
+                  </div>
+                )}
+                {/* Keep displaying other textual suggestions */}
+                {studioState.audioOutput.jingleIdeas && studioState.audioOutput.jingleIdeas.length > 0 && <p className="text-xs text-slate-300"><strong>Jingle Ideas:</strong> {studioState.audioOutput.jingleIdeas.join(' | ')}</p>}
+                {studioState.audioOutput.sfxConcepts && studioState.audioOutput.sfxConcepts.length > 0 && <p className="text-xs text-slate-300"><strong>SFX Concepts:</strong> {studioState.audioOutput.sfxConcepts.join(' | ')}</p>}
+                {studioState.audioOutput.voiceOverTone && <p className="text-xs text-slate-300"><strong>Voice Tone:</strong> {studioState.audioOutput.voiceOverTone}</p>}
+              </div>
+            )}
+          </div>
+        );
       case CreatorStepIdEnum.PACK:
         return (
             <div className="space-y-6">
@@ -299,7 +446,37 @@ const CreatorsEdgeStudioTool: React.FC = () => {
                 {studioState.visionOutput && ( <div className="card-premium p-4"> <h4 className="text-xl font-semibold text-purple-300 mb-2 flex items-center"><LightBulbIcon className="w-6 h-6 mr-2"/>The Vision</h4> <p><strong>Titles:</strong> {studioState.visionOutput.titles.join(' | ')}</p><p><strong>Angles:</strong> {studioState.visionOutput.angles.join(' | ')}</p><p><strong>Audience:</strong> {studioState.visionOutput.audiencePersona}</p> </div>)}
                 {studioState.signatureOutput && ( <div className="card-premium p-4"> <h4 className="text-xl font-semibold text-purple-300 mb-2 flex items-center"><PaletteIcon className="w-6 h-6 mr-2"/>Visual Signature</h4> {studioState.signatureOutput.colorPalettes.map(p => <p key={p.name}><strong>Palette {p.name}:</strong> ({p.colors.join(', ')})</p>)} {studioState.signatureOutput.fontPairings.map((f,i) => <p key={i}><strong>Fonts {i+1}:</strong> {f.heading} & {f.body} ({f.vibe})</p>)} <p><strong>Thumbnails:</strong> {studioState.signatureOutput.thumbnailConcepts.join(' | ')}</p> </div>)}
                 {studioState.blueprintOutput && ( <div className="card-premium p-4"> <h4 className="text-xl font-semibold text-purple-300 mb-2 flex items-center"><ClipboardDocumentListIcon className="w-6 h-6 mr-2"/>Content Blueprint</h4> <p><strong>Points:</strong> {studioState.blueprintOutput.talkingPoints.join(' | ')}</p><p><strong>Hooks:</strong> {studioState.blueprintOutput.introHooks.join(' | ')}</p><p><strong>CTAs:</strong> {studioState.blueprintOutput.ctaPhrases.join(' | ')}</p><p><strong>Interactive:</strong> {studioState.blueprintOutput.interactiveIdeas.join(' | ')}</p> </div>)}
-                {studioState.audioOutput && ( <div className="card-premium p-4"> <h4 className="text-xl font-semibold text-purple-300 mb-2 flex items-center"><MusicalNoteIcon className="w-6 h-6 mr-2"/>Audio Alchemy</h4> <p><strong>Music:</strong> {studioState.audioOutput.musicStyleSuggestions.join(' | ')}</p><p><strong>Jingles:</strong> {studioState.audioOutput.jingleIdeas.join(' | ')}</p><p><strong>SFX:</strong> {studioState.audioOutput.sfxConcepts.join(' | ')}</p> {studioState.audioOutput.voiceOverTone && <p><strong>Voice Tone:</strong> {studioState.audioOutput.voiceOverTone}</p>} </div>)}
+                {studioState.audioOutput && (
+                  <div className="card-premium p-4">
+                    <h4 className="text-xl font-semibold text-purple-300 mb-2 flex items-center"><MusicalNoteIcon className="w-6 h-6 mr-2"/>Audio Alchemy</h4>
+                    {/* Display generated music snippets with audio players */}
+                    {studioState.audioOutput.generatedMusic && studioState.audioOutput.generatedMusic.length > 0 && (
+                      <div className="mt-2 space-y-3">
+                        <h5 className="text-md font-semibold text-purple-300 mb-1">Generated Music:</h5>
+                        {studioState.audioOutput.generatedMusic.map((asset) => (
+                          <div key={asset.id} className="p-3 bg-slate-800/60 rounded-md my-2 border border-slate-700">
+                            <p className="text-sm font-medium text-sky-300">{asset.description || 'Generated Music'}</p>
+                            {asset.isLoading && <p className="text-xs text-amber-400 mt-1 flex items-center"><LoadingSpinner size="xs" /> <span className="ml-2">Loading...</span></p>}
+                            {asset.error && <p className="text-xs text-red-400 mt-1">Error: {asset.error}</p>}
+                            {asset.audioUrl && !asset.isLoading && !asset.error && (
+                              <>
+                                <p className="text-xs text-slate-400">Duration: {asset.duration}s</p>
+                                <audio controls src={asset.audioUrl} className="w-full mt-2 h-10">
+                                  Your browser does not support the audio element.
+                                </audio>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Display other textual audio suggestions */}
+                    {studioState.audioOutput.musicStyleSuggestions && studioState.audioOutput.musicStyleSuggestions.length > 0 && (!studioState.audioOutput.generatedMusic || studioState.audioOutput.generatedMusic.length === 0) && <p><strong>Suggested Music Styles:</strong> {studioState.audioOutput.musicStyleSuggestions.join(' | ')}</p>}
+                    <p><strong>Jingles:</strong> {studioState.audioOutput.jingleIdeas.join(' | ')}</p>
+                    <p><strong>SFX:</strong> {studioState.audioOutput.sfxConcepts.join(' | ')}</p>
+                    {studioState.audioOutput.voiceOverTone && <p><strong>Voice Tone:</strong> {studioState.audioOutput.voiceOverTone}</p>}
+                  </div>
+                )}
                  <div className="text-center pt-4"> <p className="text-sm text-slate-400">This Edge Pack is your launchpad. <Link to="/subscriptions" className="font-semibold text-amber-400 hover:text-hotpink">Go Pro</Link> for more!</p>
                     <button onClick={startNewPack} className="btn-secondary mt-6">Start New Edge Pack</button>
                 </div>
